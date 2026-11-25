@@ -84,7 +84,7 @@ const server = http.createServer((req, res) => {
   if (u.pathname === "/creme-corporal-asad_9006/") return fim(`<body>${oferta("Loja Alfa", "11,00", "780", "Creme Corporal Hidratante Lattafa Asad 280g")}</body>`);
   if (u.pathname === "/locao-corporal-vs-love-spell-250ml_9100/") return fim(`<body>${oferta("Loja Alfa", "10,75", "901", "Body Mist Feminino Victoria's Secret Love Spell 250ML")}${oferta("Outra Loja", "12,00", "902", "Victoria's Secret Splash Love Spell")}</body>`);
   if (u.pathname === "/locao-corporal-vs-amber-romance-236ml_9101/") return fim(`<body>${oferta("Loja Alfa", "15,00", "903", "Loção Hidratante Victoria's Secret Amber Romance 236ML")}${oferta("Outra Loja", "14,00", "904", "Loção Corporal VS Amber Romance")}</body>`);
-  if (u.pathname === "/perfume_5001/") return fim(`<body><div class="ficha-olfativa-lead">O Marca X é um perfume âmbar, no Fonte Exemplo.</div>
+  if (u.pathname === "/perfume_5001/") return fim(`<body>${oferta("Loja Alfa", "17,00", "111")}${oferta("Loja Beta", "29,00", "222")}<div class="ficha-olfativa-lead">O Marca X é um perfume âmbar, no Fonte Exemplo.</div>
 <ul class="ficha-olfativa-badges"><li><span class="ficha-olfativa-badge-rotulo">Público</span> Masculino</li><li><span class="ficha-olfativa-badge-rotulo">Lançamento</span> 2021</li></ul>
 <ul class="ficha-olfativa-acordes"><li><span class="ficha-olfativa-acorde"><span class="ficha-olfativa-acorde-nome">Âmbar</span></span></li></ul>
 <ul class="ficha-olfativa-piramide"><li class="ficha-olfativa-piramide-top"><ul class="ficha-olfativa-notas"><li>Pimenta</li><li>Abacaxi</li></ul></li>
@@ -181,7 +181,7 @@ try {
 
   // 4. serviço de busca: devolve só campos públicos, aceita kit, ignora creme, guarda descobertos
   grava("data-revenda.json", { atualizadoEm: "2026-11-20T10:00:00Z", produtos: [{ n: "Perfume Um 100ML", i: null, p: 100, r: "0-1", a: HOJE }, { n: "Perfume Dois 100ML", i: null, p: 157, r: "1-2", a: HOJE, h: 1 }] });
-  Object.assign(process.env, ENV, { ESPERA_API_MS: "1", DATA_JSON: arq("data-revenda.json"), REVENDEDORES: arq("revendedores.json") });
+  Object.assign(process.env, ENV, { ESPERA_API_MS: "1", BUSCAS_POR_MINUTO: "50", DATA_JSON: arq("data-revenda.json"), REVENDEDORES: arq("revendedores.json") });
   const { criarServico } = await import("../server/api.mjs");
   const api = criarServico();
   await new Promise((ok2) => api.listen(0, "127.0.0.1", ok2));
@@ -220,6 +220,22 @@ try {
   const comLoja = (await (await fetch(`${URL_API}/buscar?q=asad&loja=${lk.codigo}`)).json()).produtos;
   assert.deepEqual(comLoja.map((p) => p.p), semLoja.map((p) => Math.ceil(p.p * 1.3)), "busca sob demanda com a margem do lojista");
   passo("link de revenda (cria o link, catálogo e busca com a margem do lojista, sem expor o custo)");
+  // preço na hora: confere ao vivo a página do modelo dos itens do orçamento (guarda 30 min)
+  const cotT = ler("bruto.json").cotacao;
+  pedidos.length = 0;
+  const cf = (await (await fetch(`${URL_API}/conferir?r=0-111,1-222&r=0-777`)).json()).itens;
+  const cfX = cf.find((x) => x.ref === "0-111,1-222");
+  assert.equal(cfX.p, Math.ceil(17 * cotT * 1.05 * 1.35 - 1e-9), "preço com a oferta lida agora (US$ 17)");
+  assert.equal(cfX.a, HOJE, "data do preço = hoje");
+  assert.ok(cf.some((x) => x.ref === "0-777"), "item sem modelo volta com o preço guardado");
+  const nPed = pedidos.length;
+  assert.ok(nPed >= 1 && pedidos.includes("/perfume_5001/"), "abriu a página do modelo: " + pedidos.join(" "));
+  await fetch(`${URL_API}/conferir?r=0-111,1-222`);
+  assert.equal(pedidos.length, nPed, "2ª conferência vem do que foi guardado (sem novo pedido)");
+  const cfL = (await (await fetch(`${URL_API}/conferir?r=0-111,1-222&loja=${lk.codigo}`)).json()).itens[0];
+  assert.equal(cfL.p, Math.ceil(cfX.p * 1.3 - 1e-9), "no link de lojista, com a margem dele");
+  assert.ok(!/US$|usd|Loja Alfa|margem/i.test(JSON.stringify(cf)), "só campos públicos");
+  passo("preço na hora no orçamento (ao vivo, guardado 30 min, sem modelo usa o guardado, margem do lojista)");
   api.close();
   assert.equal(resp.produtos.length, 6, JSON.stringify(resp));
   assert.ok(resp.produtos.some((p) => p.n === "Lattafa Asad Hair Mist 50ML" && p.r === "0-783"), "hair mist entra");

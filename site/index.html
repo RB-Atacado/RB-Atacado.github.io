@@ -245,8 +245,10 @@ function build(){
     const name=d.n.replace(brand,"").replace(/\s+/g," ").trim().replace(/\s*(Eau de Parfum|Eau de Toilette|Extrait de Parfum|Parfum)\s*/i," ").replace(/\s+(Masculino|Feminino|Unissex)\b/i,"").replace(/\s*\d+\s*ML\b/i,"").trim();
     const conc=(d.n.match(/Eau de Parfum|Eau de Toilette|Extrait de Parfum/i)||[""])[0];
     const ml=(d.n.match(/(\d+)\s*ML/i)||[,""])[1];
-    const dias=idade(d.a);
-    return {id:i,brand,gender,name,conc,ml,full:d.n,img:d.i,price:d.p,ref:d.r,dias,stale:dias>validade,tipo:tipoDe(d.n),h:d.h||0};
+    // preço conferido ao vivo há menos de 30 min vale sobre o da última coleta
+    const vivo=AO_VIVO[d.n]&&Date.now()-AO_VIVO[d.n].em<30*60e3?AO_VIVO[d.n]:null;
+    const dias=idade(vivo?vivo.a:d.a);
+    return {id:i,brand,gender,name,conc,ml,full:d.n,img:d.i,price:vivo?vivo.p:d.p,ref:vivo?vivo.r:d.r,dias,stale:dias>validade,tipo:tipoDe(d.n),h:d.h||0};
   });
   const sel=$("brand"),atual=sel.value;sel.length=1;
   [...new Set(P.map(p=>p.brand))].sort().forEach(b=>{const o=document.createElement("option");o.textContent=b;sel.appendChild(o)});
@@ -445,10 +447,33 @@ function mostrarAviso(L,pedirConfirmacao){
   a.innerHTML=`<b>Os preços foram atualizados agora:</b><ul>${L.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>${pedirConfirmacao?"Confira o total e toque em <b>Enviar pelo WhatsApp</b> de novo para confirmar.":"O total abaixo já está com os preços novos."}`;
   a.hidden=false;
 }
+// preço na hora: o servidor consulta ao vivo os itens do orçamento (resposta guardada 30 min lá e aqui)
+const AO_VIVO={};
+async function conferirNaHora(){
+  if(!CFG.api)return false;
+  const itens=Object.keys(cart).map(byName).filter(p=>p&&p.ref);
+  if(!itens.length)return false;
+  const limite=new AbortController(),t=setTimeout(()=>limite.abort(),10000);
+  try{
+    const qs=itens.map(p=>"r="+encodeURIComponent(p.ref)).join("&")+(LOJA?"&loja="+LOJA:"");
+    const r=await fetch(CFG.api.replace(/\/$/,"")+"/conferir?"+qs,{signal:limite.signal});
+    if(!r.ok)return false;
+    const j=await r.json();let mudou=false;
+    for(const it of j.itens||[]){
+      const p=itens.find(x=>x.ref===it.ref);if(!p)continue;
+      const antes=AO_VIVO[p.full];
+      AO_VIVO[p.full]={p:it.p,a:it.a,r:it.r,em:Date.now()};
+      if(it.p!==p.price||(antes&&antes.p!==it.p))mudou=true;
+    }
+    if(mudou){build();render();updateBar();if($("dlg").open)renderLines()}
+    return mudou;
+  }catch(e){return false}finally{clearTimeout(t)}
+}
 $("open").onclick=async()=>{
   $("aviso").hidden=true;renderLines();$("dlg").showModal();
   const antes=precosDoOrcamento();
-  if(await atualizarPrecos())mostrarAviso(mudancas(antes,precosDoOrcamento()),false);
+  const a=await atualizarPrecos(),b=await conferirNaHora();
+  if(a||b)mostrarAviso(mudancas(antes,precosDoOrcamento()),false);
 };
 $("send").addEventListener("click",async e=>{
   const temItens=Object.keys(cart).length>0,ok=temItens&&/^\d{10,15}$/.test(CFG.whatsapp||"")&&CFG.whatsapp!=="5500000000000";
@@ -456,8 +481,8 @@ $("send").addEventListener("click",async e=>{
   if(!ok){alert(temItens?"WhatsApp do vendedor ainda não configurado.":"Adicione ao menos um perfume.");return}
   const janela=window.open("about:blank","_blank"); // aberta já no toque, para o navegador não bloquear
   const antes=precosDoOrcamento();
-  const veioNovo=await atualizarPrecos();
-  const L=veioNovo?mudancas(antes,precosDoOrcamento()):[];
+  const a=await atualizarPrecos(),b=await conferirNaHora();
+  const L=a||b?mudancas(antes,precosDoOrcamento()):[];
   if(L.length){if(janela)janela.close();mostrarAviso(L,true);$("aviso").scrollIntoView({behavior:"smooth",block:"nearest"});return}
   const url="https://wa.me/"+CFG.whatsapp+"?text="+encodeURIComponent(message());
   if(janela)janela.location.href=url;else location.href=url;

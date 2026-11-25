@@ -178,6 +178,44 @@ export function criarServico({ cliente = criarCliente({ esperaMs: Number(env.ESP
     }
   }
 
+  // ---------- preço na hora (itens do orçamento) ----------
+  // Consulta ao vivo a página do modelo de cada item e devolve o preço final do momento (guarda 30 min).
+  // Itens sem modelo (kits etc.) ficam com o preço da última coleta.
+  const CONFERIR_MS = Number(env.CONFERIR_MINUTOS || 30) * 60e3;
+  const conferidos = new Map(); // chave do produto -> { em, prod }
+  async function conferir(refs) {
+    const cat = catalogo();
+    const itens = [];
+    for (const ref of refs.slice(0, 15)) {
+      const p = produtoDaFicha(ref, null);
+      if (!p) continue;
+      const k = chaveFicha(p);
+      let c = conferidos.get(k);
+      if (!c || Date.now() - c.em > CONFERIR_MS) {
+        let atual = p;
+        if (!String(p.id || "").startsWith("o") && podeConsultarFonte(2)) {
+          try {
+            let id = p.id;
+            if (!id) id = lerModelos(await pedir(`/busca/?q=${encodeURIComponent(p.n)}`)).itens.find((m) => normalizar(m.nome) === normalizar(p.n))?.id;
+            if (id) {
+              const o = ofertasDasLojas(lerOfertas(await pedir(`/perfume_${id}/`)), nomes, hoje());
+              if (o.length) atual = { ...p, o };
+            }
+          } catch (e) {
+            if (e instanceof Bloqueio) { bloqueadoAte = Date.now() + PAUSA_BLOQUEIO_MS; console.warn(`fonte respondeu ${e.message}; pausa de 30 min`); }
+            else console.warn("erro ao conferir:", e.message);
+          }
+        }
+        c = { em: Date.now(), prod: atual };
+        conferidos.set(k, c);
+        if (conferidos.size > 3000) conferidos.clear();
+      }
+      const pub = produtoPublico(c.prod, cat.cotacao, preco);
+      if (pub) itens.push({ ref, n: pub.n, p: pub.p, r: pub.r, a: pub.a });
+    }
+    return { itens };
+  }
+
   // ---------- revenda ----------
   const lojaDe = (cod) => (cod && /^[a-z0-9-]{4,48}$/i.test(cod) ? lerJson(REVENDEDORES, {})[cod] || null : null);
   // código do link = nome da loja em formato de endereço + 4 caracteres aleatórios (ex.: loja-da-ana-k7m2)
@@ -233,18 +271,6 @@ export function criarServico({ cliente = criarCliente({ esperaMs: Number(env.ESP
     }
     if (u.pathname === "/saude") return responder(200, { ok: true });
     const ip = String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "").split(",")[0].trim();
-
-    if (u.pathname === "/revenda" && req.method === "POST") {
-      try { const [st, obj] = criarLink(JSON.parse(await lerCorpo(req) || "{}"), ip); return responder(st, obj); }
-      catch { return responder(400, { erro: "Dados inválidos." }); }
-    }
-    if (u.pathname === "/catalogo" && req.method === "GET") {
-      const cod = u.searchParams.get("loja"), loja = lojaDe(cod);
-      if (!loja) return responder(404, { erro: "Link de loja não encontrado." });
-      return responder(200, catalogoDaLoja(cod, loja));
-    }
-    if (!["/buscar", "/ficha"].includes(u.pathname) || req.method !== "GET") return responder(404, { erro: "não encontrado" });
-
     const liberado = () => {
       const agora = Date.now();
       const lista = (porCliente.get(ip) || []).filter((t) => agora - t < 60e3);
@@ -254,6 +280,29 @@ export function criarServico({ cliente = criarCliente({ esperaMs: Number(env.ESP
       if (porCliente.size > 5000) porCliente.clear();
       return true;
     };
+
+    if (u.pathname === "/revenda" && req.method === "POST") {
+      try { const [st, obj] = criarLink(JSON.parse(await lerCorpo(req) || "{}"), ip); return responder(st, obj); }
+      catch { return responder(400, { erro: "Dados inválidos." }); }
+    }
+    if (u.pathname === "/conferir" && req.method === "GET") {
+      const refs = u.searchParams.getAll("r").map((x) => String(x).slice(0, 300)).filter(Boolean);
+      if (!refs.length) return responder(400, { erro: "sem itens" });
+      const codLoja = u.searchParams.get("loja"), lojaC = codLoja ? lojaDe(codLoja) : null;
+      if (codLoja && !lojaC) return responder(404, { erro: "Link de loja não encontrado." });
+      if (!liberado()) return responder(429, { erro: "aguarde um minuto" });
+      try {
+        const r = await conferir(refs);
+        if (lojaC) r.itens = r.itens.map((x) => ({ ...x, p: comMargem(x.p, lojaC.margem) }));
+        return responder(200, r);
+      } catch (e) { console.error(e); return responder(500, { erro: "falha ao conferir" }); }
+    }
+    if (u.pathname === "/catalogo" && req.method === "GET") {
+      const cod = u.searchParams.get("loja"), loja = lojaDe(cod);
+      if (!loja) return responder(404, { erro: "Link de loja não encontrado." });
+      return responder(200, catalogoDaLoja(cod, loja));
+    }
+    if (!["/buscar", "/ficha"].includes(u.pathname) || req.method !== "GET") return responder(404, { erro: "não encontrado" });
 
     if (u.pathname === "/ficha") {
       const p = produtoDaFicha(u.searchParams.get("r"), u.searchParams.get("n"));
