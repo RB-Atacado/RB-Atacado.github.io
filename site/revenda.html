@@ -40,7 +40,8 @@ input:focus{outline:none;border-color:var(--ink)}
 .pais svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:17px;pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
 /* fechado mostra só bandeira + código (o texto do select fica transparente e #ddiTxt aparece por cima); aberto, a lista mostra os nomes */
 .pais b{position:absolute;left:40px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:400;letter-spacing:normal;text-transform:none;pointer-events:none}
-.tel select{width:104px;color:transparent!important}
+.pais b::after{content:"▾";margin-left:6px;font-size:12px;color:var(--mute)}
+.tel select{width:104px;color:transparent!important;-webkit-appearance:none;appearance:none}
 .tel select option{color:var(--ink)}
 .tel select{flex:0 0 auto;padding:12px 6px 12px 40px;border:1px solid var(--line);border-right:0;border-radius:0;background:var(--suave);font:inherit;font-size:14px;letter-spacing:normal;text-transform:none;font-weight:400;color:var(--ink);cursor:pointer}
 .tel select:focus{outline:none;border-color:var(--ink)}
