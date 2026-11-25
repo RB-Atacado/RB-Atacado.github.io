@@ -5,7 +5,8 @@ import { fileURLToPath } from "node:url";
 
 export async function alertar(texto) {
   const { EVOLUTION_URL: url, EVOLUTION_INSTANCIA: inst, EVOLUTION_APIKEY: chave, ALERTA_NUMERO: numero } = process.env;
-  const msg = `⚠️ Catálogo de perfumes\n${texto}`;
+  // título padrão é o de aviso; o resumo diário usa ALERTA_TITULO="📊 Catálogo de perfumes"
+  const msg = `${process.env.ALERTA_TITULO || "⚠️ Catálogo de perfumes"}\n${texto}`;
   if (!url || !inst || !chave || !numero) {
     console.log(`(aviso por WhatsApp não configurado) ${texto}`);
     return false;
