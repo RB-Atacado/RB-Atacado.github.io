@@ -38,6 +38,10 @@ input:focus{outline:none;border-color:var(--ink)}
 .tel{display:flex;gap:0}
 .pais{position:relative;flex:0 0 auto;display:flex}
 .pais svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:24px;height:17px;pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+/* fechado mostra só bandeira + código (o texto do select fica transparente e #ddiTxt aparece por cima); aberto, a lista mostra os nomes */
+.pais b{position:absolute;left:40px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:400;letter-spacing:normal;text-transform:none;pointer-events:none}
+.tel select{width:104px;color:transparent!important}
+.tel select option{color:var(--ink)}
 .tel select{flex:0 0 auto;padding:12px 6px 12px 40px;border:1px solid var(--line);border-right:0;border-radius:0;background:var(--suave);font:inherit;font-size:14px;letter-spacing:normal;text-transform:none;font-weight:400;color:var(--ink);cursor:pointer}
 .tel select:focus{outline:none;border-color:var(--ink)}
 .tel input{flex:1 1 auto;min-width:0}
@@ -61,6 +65,7 @@ strong{font-size:12px;letter-spacing:.16em;text-transform:uppercase}
       <span class="tel">
         <span class="pais">
           <svg id="bandeira" viewBox="0 0 24 17" aria-hidden="true"><rect width="24" height="17" fill="#009c3b"/><path d="M12 2 22 8.5 12 15 2 8.5z" fill="#ffdf00"/><circle cx="12" cy="8.5" r="3.6" fill="#002776"/></svg>
+          <b id="ddiTxt">+55</b>
           <select id="ddi" aria-label="País">
             <option value="55" selected>Brasil +55</option>
             <option value="595">Paraguai +595</option>
@@ -131,7 +136,7 @@ const BANDEIRAS={
   "351":'<rect width="24" height="17" fill="#ff0000"/><rect width="9.6" height="17" fill="#006600"/><circle cx="9.6" cy="8.5" r="3" fill="#ffcc00"/><circle cx="9.6" cy="8.5" r="1.8" fill="#fff" stroke="#ff0000" stroke-width=".8"/>',
   "1":faixas(["#b22234","#fff","#b22234","#fff","#b22234","#fff","#b22234","#fff","#b22234","#fff","#b22234","#fff","#b22234"])+'<rect width="10" height="9.2" fill="#3c3b6e"/>'
 };
-$("ddi").addEventListener("change",()=>{$("bandeira").innerHTML=BANDEIRAS[$("ddi").value]||"";$("whatsapp").placeholder=$("ddi").value==="55"?"(41) 99999-8888":"Código de área e número";$("whatsapp").focus()});
+$("ddi").addEventListener("change",()=>{$("bandeira").innerHTML=BANDEIRAS[$("ddi").value]||"";$("ddiTxt").textContent="+"+$("ddi").value;$("whatsapp").placeholder=$("ddi").value==="55"?"(41) 99999-8888":"Código de área e número";$("whatsapp").focus()});
 $("form").addEventListener("submit",async e=>{
   e.preventDefault();$("erro").hidden=true;$("gerar").disabled=true;$("gerar").textContent="Gerando…";
   try{
