@@ -54,6 +54,9 @@ main{max-width:1180px;margin:0 auto;padding:clamp(12px,3.4vw,22px) clamp(10px,3v
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,136px),1fr));gap:clamp(18px,4vw,28px) clamp(10px,2.4vw,18px)}
 .card{scroll-margin-top:56px;background:var(--card);border:0;border-radius:0;padding:0;display:flex;flex-direction:column;gap:6px;text-align:center}
 .pic{aspect-ratio:1/1;height:auto;border-radius:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:var(--foto);margin-bottom:8px}
+.semFoto{flex-direction:column;gap:8px;padding:12%;text-align:center;border:1px solid var(--line)}
+.semFoto .sfM{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);overflow-wrap:anywhere}
+.semFoto .sfN{font-size:11px;line-height:1.4;color:var(--mute);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .pic img{display:block;width:100%;height:100%;object-fit:contain;padding:10%;cursor:zoom-in;mix-blend-mode:multiply;transition:transform .4s}
 .card:hover .pic img{transform:scale(1.05)}
 .brand{font-size:10px;text-transform:uppercase;letter-spacing:.2em;color:var(--mute);font-weight:500}
@@ -231,9 +234,9 @@ try{Object.assign(cart,JSON.parse(localStorage.getItem("cartN"+SUF)||"{}"))}catc
 try{Object.assign(EXTRA,JSON.parse(localStorage.getItem("extraN"+SUF)||"{}"))}catch(e){}
 const save=()=>{try{localStorage.setItem("cartN"+SUF,JSON.stringify(cart));localStorage.setItem("extraN"+SUF,JSON.stringify(EXTRA))}catch(e){}};
 
-function bottle(b){const h=hue(b);return `<svg width="40" height="62" viewBox="0 0 40 62"><rect x="15" y="2" width="10" height="9" rx="2" fill="hsl(${h} 35% 35%)"/><rect x="12" y="11" width="16" height="5" fill="hsl(${h} 30% 55%)"/><rect x="4" y="16" width="32" height="44" rx="8" fill="hsl(${h} 55% 62%)"/><rect x="9" y="26" width="22" height="18" rx="3" fill="#fff" opacity=".55"/></svg>`}
 function pic(p){
-  const fb=`<div class="pic" style="background:hsl(${hue(p.brand)} 45% 92%)">${bottle(p.brand)}</div>`;
+  // sem foto real (ou a foto não abriu): cartão neutro com a marca e o nome, do mesmo tamanho da foto
+  const fb=`<div class="pic semFoto"><span class="sfM">${esc(p.brand)}</span><span class="sfN">${esc(p.name||p.full)}</span></div>`;
   if(!(CFG.mostrarFotos&&p.img))return fb;
   return `<div class="pic"><img loading="lazy" referrerpolicy="no-referrer" src="${esc(p.img)}" data-g="${esc(fotoGrande(p.img))}" alt="${esc(p.full)}" onerror="this.parentNode.outerHTML=this.dataset.fb" data-fb="${esc(fb)}"></div>`;
 }
