@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import {
   caminho, lerJson, gravarJson, lerLojas, hoje, dias, criarCliente, Bloqueio, LimitePedidos,
   lerBusca, lerModelos, lerOfertas, lerCotacao, ofertasDasLojas, normalizar, ehPerfume,
-  ofertaPerfume, ehSplash, ehCreme, modeloEhSplash, nomeSplash, termoBusca, arrumarSoltos,
+  ofertaPerfume, ehSplash, ehCreme, modeloEhSplash, nomeSplash, termoBusca, arrumarSoltos, fotoValida,
 } from "./comum.mjs";
 import { alertar } from "./alerta.mjs";
 
@@ -123,7 +123,7 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
 
     for (const loja of varrer) {
       const vistos = new Set();
-      let atualizadas = 0, desconhecidas = 0;
+      let atualizadas = 0, desconhecidas = 0, fotosNovas = 0;
       for (const termo of termos) {
         for (let pag = 1; pag <= 500; pag++) {
           const q = encodeURIComponent(termo);
@@ -134,14 +134,19 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
             if (vistos.has(k)) continue;
             vistos.add(k);
             const o = indice.get(k);
-            if (o) { o[1] = it.usd; o[3] = dia; atualizadas++; }
+            if (o) {
+              o[1] = it.usd; o[3] = dia; atualizadas++;
+              // produto ainda sem foto (ex.: entrou antes de a foto do cartão ser guardada): usa a foto do cartão da loja
+              const dp = dono.get(k);
+              if (dp && !fotoValida(dp.i) && fotoValida(it.img)) { dp.i = it.img; fotosNovas++; }
+            }
             else { desconhecidas++; fila.set(k, { k, n: it.nome, usd: it.usd, t: dia, img: it.img || null, oid: it.idOferta || null }); }
           }
           if (!itens.length || pag * POR_PAGINA >= (total || 0)) break;
         }
       }
       const doCatalogo = [...indice.keys()].filter((k) => k.startsWith(loja.idx + ":")).length;
-      resumo.push({ loja: loja.nome, slug: loja.slug, ofertasLidas: vistos.size, atualizadas, doCatalogo, desconhecidas });
+      resumo.push({ loja: loja.nome, slug: loja.slug, ofertasLidas: vistos.size, atualizadas, doCatalogo, desconhecidas, fotosNovas });
       // leitura muito abaixo da anterior: provável mudança no site da fonte
       const antes = estado.lidas[loja.slug] || 0;
       if (vistos.size === 0 || (antes >= 100 && vistos.size < antes * 0.5)) {
@@ -287,7 +292,7 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
 function imprimirResumo(resumo, s, inicio, log) {
   for (const r of resumo) {
     const pct = r.doCatalogo ? ((100 * r.atualizadas) / r.doCatalogo).toFixed(1) : "-";
-    log(`  ${r.loja}: ${r.ofertasLidas} ofertas lidas | cobertura do catálogo ${r.atualizadas}/${r.doCatalogo} (${pct}%) | desconhecidas: ${r.desconhecidas}`);
+    log(`  ${r.loja}: ${r.ofertasLidas} ofertas lidas | cobertura do catálogo ${r.atualizadas}/${r.doCatalogo} (${pct}%) | desconhecidas: ${r.desconhecidas}${r.fotosNovas ? ` | fotos recuperadas: ${r.fotosNovas}` : ""}`);
   }
   log(`Pedidos: ${s.pedidos} | ${(s.bytes / 1048576).toFixed(1)} MB | ${Math.round((Date.now() - inicio) / 1000)}s`);
 }

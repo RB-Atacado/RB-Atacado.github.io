@@ -128,8 +128,10 @@ const imagem = ($, el) => {
   const im = $(el).find("img").first();
   let img = im.attr("data-src") || im.attr("src") || "";
   if (/loading-images|\.svg$/.test(img)) img = im.attr("data-src") || "";
-  return img || null;
+  return fotoValida(img) ? img : null;
 };
+// foto de verdade: endereço completo e não a imagem "sem imagem" da fonte
+export const fotoValida = (s) => typeof s === "string" && /^https?:\/\//i.test(s) && !/sem-imagem|no-image|loading-images/i.test(s);
 // modelo = link com "_<id>/" (um sublinhado); oferta isolada usa "__<id>/"
 export const idModelo = (href) => (/[^_]_(\d+)\/?$/.exec(href || "") || [])[1] || null;
 // tipos de modelo aceitos: perfumes e kits de perfume
@@ -232,7 +234,7 @@ export function arrumarSoltos(produtos) {
       if (!ja) dono.o.push(o);
       else if (o[1] < ja[1]) Object.assign(ja, o);
     }
-    if (!dono.i && p.i) dono.i = p.i;
+    if (!fotoValida(dono.i) && fotoValida(p.i)) dono.i = p.i;
     remover.add(p);
     juntados++;
   }
@@ -367,5 +369,5 @@ export function produtoPublico(prod, cotacao, { margem, acrescimo }) {
   if (!o.length || !cotacao) return null;
   const ref = o[0];
   const p = Math.ceil(ref[1] * cotacao * (1 + acrescimo) * (1 + margem) - 1e-9);
-  return { n: prod.n, i: prod.i || null, p, r: o.map((x) => `${x[0]}-${x[2]}`).join(","), a: ref[3] };
+  return { n: prod.n, i: fotoValida(prod.i) ? prod.i : null, p, r: o.map((x) => `${x[0]}-${x[2]}`).join(","), a: ref[3] };
 }
