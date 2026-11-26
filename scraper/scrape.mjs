@@ -123,7 +123,7 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
 
     for (const loja of varrer) {
       const vistos = new Set();
-      let atualizadas = 0, desconhecidas = 0, fotosNovas = 0;
+      let atualizadas = 0, desconhecidas = 0, fotosNovas = 0, fotosTrocadas = 0;
       for (const termo of termos) {
         for (let pag = 1; pag <= 500; pag++) {
           const q = encodeURIComponent(termo);
@@ -137,8 +137,13 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
             if (o) {
               o[1] = it.usd; o[3] = dia; atualizadas++;
               // produto ainda sem foto (ex.: entrou antes de a foto do cartão ser guardada): usa a foto do cartão da loja
+              // ou a foto guardada é de anúncio e o anúncio da loja de referência mostra outra: a loja trocou a foto
+              // e a fonte apaga o endereço antigo (dá 404), então fica sempre a atual
               const dp = dono.get(k);
-              if (dp && !fotoValida(dp.i) && fotoValida(it.img)) { dp.i = it.img; fotosNovas++; }
+              if (dp && fotoValida(it.img) && it.img !== dp.i) {
+                if (!fotoValida(dp.i)) { dp.i = it.img; fotosNovas++; }
+                else if (/\/fotos\/produtos\//.test(dp.i) && dp.o.reduce((a, b) => (b[0] < a[0] ? b : a)) === o) { dp.i = it.img; fotosTrocadas++; }
+              }
             }
             else { desconhecidas++; fila.set(k, { k, n: it.nome, usd: it.usd, t: dia, img: it.img || null, oid: it.idOferta || null }); }
           }
@@ -146,7 +151,7 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
         }
       }
       const doCatalogo = [...indice.keys()].filter((k) => k.startsWith(loja.idx + ":")).length;
-      resumo.push({ loja: loja.nome, slug: loja.slug, ofertasLidas: vistos.size, atualizadas, doCatalogo, desconhecidas, fotosNovas });
+      resumo.push({ loja: loja.nome, slug: loja.slug, ofertasLidas: vistos.size, atualizadas, doCatalogo, desconhecidas, fotosNovas, fotosTrocadas });
       // leitura muito abaixo da anterior: provável mudança no site da fonte
       const antes = estado.lidas[loja.slug] || 0;
       if (vistos.size === 0 || (antes >= 100 && vistos.size < antes * 0.5)) {
@@ -292,7 +297,7 @@ export async function coletar({ cliente = criarCliente(), log = console.log } = 
 function imprimirResumo(resumo, s, inicio, log) {
   for (const r of resumo) {
     const pct = r.doCatalogo ? ((100 * r.atualizadas) / r.doCatalogo).toFixed(1) : "-";
-    log(`  ${r.loja}: ${r.ofertasLidas} ofertas lidas | cobertura do catálogo ${r.atualizadas}/${r.doCatalogo} (${pct}%) | desconhecidas: ${r.desconhecidas}${r.fotosNovas ? ` | fotos recuperadas: ${r.fotosNovas}` : ""}`);
+    log(`  ${r.loja}: ${r.ofertasLidas} ofertas lidas | cobertura do catálogo ${r.atualizadas}/${r.doCatalogo} (${pct}%) | desconhecidas: ${r.desconhecidas}${r.fotosNovas ? ` | fotos recuperadas: ${r.fotosNovas}` : ""}${r.fotosTrocadas ? ` | fotos trocadas pela loja: ${r.fotosTrocadas}` : ""}`);
   }
   log(`Pedidos: ${s.pedidos} | ${(s.bytes / 1048576).toFixed(1)} MB | ${Math.round((Date.now() - inicio) / 1000)}s`);
 }
